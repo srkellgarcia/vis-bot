@@ -551,8 +551,65 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🥊 Motor de Vis activo en puerto ${PORT}`);
-  console.log(`Webhook URL path: /webhook`);
-  console.log(`Verify Token: ${VERIFY_TOKEN}`);
+// ==================== CRON ENDPOINTS (Vercel / Cloud Triggers) ====================
+app.get('/api/cron/morning', async (req, res) => {
+  try {
+    console.log('[CRON ENDPOINT] 9:00 AM Kickoff');
+    const greetingParts = [{
+      text: 'Son las 9:00 AM. Inicia la jornada de Kell Garcia. Envíale su saludo matutino de Rocky Balboa (35 años): dale un ancla espiritual y de fe para templar el carácter, pregúntale por sus prioridades sagradas para hoy y recuérdale que hoy IronBot necesita avance real. Sin excusas.'
+    }];
+    const msg = await askGemini(greetingParts);
+    await sendWhatsAppText(KELL_PHONE, msg);
+    res.status(200).send('Morning kickoff sent');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
 });
+
+app.get('/api/cron/night', async (req, res) => {
+  try {
+    console.log('[CRON ENDPOINT] 10:00 PM Review');
+    const closingParts = [{
+      text: 'Son las 10:00 PM. Hora del cierre de jornada. Pídele cuentas a Kell con firmeza y hermandad: ¿Ganó o perdió el día? ¿Avanzó IronBot? ¿Mantuvo a raya las distracciones? Hazle las preguntas directas para auditar el día.'
+    }];
+    const msg = await askGemini(closingParts);
+    await sendWhatsAppText(KELL_PHONE, msg);
+    res.status(200).send('Night review sent');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+app.get('/api/cron/tasks', async (req, res) => {
+  try {
+    const tasks = await getTodayTasks();
+    const now = new Date();
+    for (const t of tasks) {
+      if (!t.horario || t.alertaEnviada || t.estado === '✅ Cumplido') continue;
+      const taskTime = new Date(t.horario);
+      const diffMinutes = (taskTime - now) / (1000 * 60);
+      if (diffMinutes > 0 && diffMinutes <= 35) {
+        const alertMsg = `⚠️ *Alerta Táctica (30 minutos)*\n\nKell, en 30 minutos (${taskTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}) toca:\n📌 *${t.titulo}* [${t.bloque}]\n\nVe cerrando pestañas, limpia la mesa y enfócate. Ni se te ocurra distraerte. ¿Listo para ejecutar?`;
+        await sendWhatsAppText(KELL_PHONE, alertMsg);
+        await markAlertSent(t.id);
+      }
+    }
+    res.status(200).send('Tasks checked');
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+app.get('/', (req, res) => {
+  res.status(200).send('🥊 Vis Bot Core is LIVE 24/7!');
+});
+
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🥊 Motor de Vis activo en puerto ${PORT}`);
+    console.log(`Webhook URL path: /webhook`);
+    console.log(`Verify Token: ${VERIFY_TOKEN}`);
+  });
+}
+
+module.exports = app;
